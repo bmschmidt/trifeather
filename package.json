@@ -1,0 +1,26 @@
+{
+  "name": "trifeather",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "apache-arrow": "^2.0.0",
+    "commander": "^6.2.0",
+    "d3-array": "^2.9.0",
+    "d3-geo": "^2.0.1",
+    "d3-geo-projection": "^3.0.0",
+    "d3-random": "^2.2.2",
+    "earcut": "^2.2.2",
+    "polygon-clipping": "^0.15.1"
+  },
+  "devDependencies": {
+    "geo-albers-usa-territories": "^0.1.0"
+  }
+}
