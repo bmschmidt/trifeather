@@ -1,11 +1,13 @@
-import arrow from 'apache-arrow';
-import pkg from 'd3-geo';
-import earcut from 'earcut';
-const { geoPath } = pkg;
+import {
+  Int32, Int64,  Int16, Int8, Float32, Dictionary,
+  Table, Column, Vector, Uint8Vector, Uint32Vector, Float64Vector, Float32Vector} from '@apache-arrow/es5-cjs';
 
-import d3GeoProject from 'd3-geo-projection';
-import d3array from 'd3-array';
-const { extent, range } = d3array
+import earcut from 'earcut';
+
+import { geoPath } from 'd3-geo';
+
+import { geoProject } from 'd3-geo-projection';
+import { extent, range } from 'd3-array';
 
 import clip from 'polygon-clipping';
 
@@ -13,7 +15,7 @@ export default class TriFeather {
 
 constructor(bytes) {
   this.bytes = bytes
-  this.t = arrow.Table.from(bytes)
+  this.t = Table.from(bytes)
 }
 
 get n_coords() {
@@ -64,9 +66,9 @@ static from_feature_collection(feature_collection,
   const path = geoPath()
   let clip_shape;
 
-  let projected = d3GeoProject.geoProject(feature_collection, projection)
+  let projected = geoProject(feature_collection, projection)
   if (options.clip_to_sphere) {
-    clip_shape = d3GeoProject.geoProject({"type": "Sphere"}, projection)
+    clip_shape = geoProject({"type": "Sphere"}, projection)
     for (let feature of projected.features) {
       const new_coords = clip.intersection(feature.coordinates, clip_shape.coordinates)
       if (projected.type == "Polygon" && typeof(new_coords[0][0][0] != "numeric")) {
@@ -163,19 +165,18 @@ static from_feature_collection(feature_collection,
     const cols = {
       "vertices": this.pack_binary(vertices),
       "bounds": this.pack_binary(bounds),
-      "coord_resolution": arrow.Uint8Vector.from(coord_resolutions),
-      "coord_buffer_offset": arrow.Uint32Vector.from(coord_buffer_offset),
-      "pixel_area": arrow.Float64Vector.from(areas),
-      "centroid_x": arrow.Float32Vector.from(centroids[0]),
-      "centroid_y": arrow.Float32Vector.from(centroids[1])
+      "coord_resolution": Uint8Vector.from(coord_resolutions),
+      "coord_buffer_offset": Uint32Vector.from(coord_buffer_offset),
+      "pixel_area": Float64Vector.from(areas),
+      "centroid_x": Float32Vector.from(centroids[0]),
+      "centroid_y": Float32Vector.from(centroids[1])
     }
-
     for (const [k, v] of properties.entries()) {
       if (k in cols) {
         // silently ignore.
         //throw `Duplicate column names--rename ${k} `;
       }
-      cols[k] = arrow.Vector.from({
+      cols[k] = Vector.from({
         nullable: true, values: v,
         type: this.infer_type(v, options.dictionary_threshold)})
     }
@@ -183,9 +184,9 @@ static from_feature_collection(feature_collection,
     const named_columns = []
     for (const [k, v] of Object.entries(cols)) {
       //      console.log(k, v)
-      named_columns.push(arrow.Column.new(k, v))
+      named_columns.push(Column.new(k, v))
     }
-    const tab = arrow.Table.new(...named_columns)
+    const tab = Table.new(...named_columns)
 
     const afresh = tab.serialize()
     return new TriFeather(afresh)
@@ -235,24 +236,24 @@ static from_feature_collection(feature_collection,
                                              if ( strings > 0 ) {
                                                // moderate overlap
                                                if (seen.length < strings.length * .75) {
-                                                 return new arrow.Dictionary(new arrow.Utf8(), new arrow.Int32())
+                                                 return new Dictionary(new Utf8(), new Int32())
                                                } else {
-                                                 return new arrow.Utf8()
+                                                 return new Utf8()
                                                }
                                              }
                                              if (floats > 0) {
-                                               return new arrow.Float32()
+                                               return new Float32()
                                              }
                                              if (Math.abs(max_int) < 2**8) {
-                                               return new arrow.Int8()
+                                               return new Int8()
                                              }
                                              if (Math.abs(max_int) < 2**16) {
-                                               return new arrow.Int16()
+                                               return new Int16()
                                              }
                                              if (Math.abs(max_int) < 2**32) {
-                                               return new arrow.Int32()
+                                               return new Int32()
                                              } else {
-                                               return new arrow.Int64()
+                                               return new Int64()
                                              }
 
                                             }
