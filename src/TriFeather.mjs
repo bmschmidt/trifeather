@@ -9,7 +9,6 @@ const { extent, range } = d3array
 
 import clip from 'polygon-clipping';
 
-
 export default class TriFeather {
 
 constructor(bytes) {
@@ -24,7 +23,7 @@ get n_coords() {
 
 get coord_buffer() {
   if (this._coord_buffer) {
-    return this._coord_buffer 
+    return this._coord_buffer
   }
   const d = this.t.get(0).vertices;
   this._coord_bytes = d.byteOffset
@@ -41,15 +40,15 @@ static polygon_to_triangles(polygon) {
   return { coords, vertices }
 }
 
-static from_feature_collection(feature_collection, 
-                                projection, 
+static from_feature_collection(feature_collection,
+                                projection,
                                 options = {dictionary_threshold: .75, clip_to_sphere: false}) {
 
   if (projection === undefined) {throw "Must define a projection"}
   // feature_collections: a (parsed) geoJSON object.
   // projection: a d3.geoProjection instance;
   // eg, d3.geoMollweide().transform([10, 20])
-  // options:   
+  // options:
 
   const properties = new Map()
   // Stores the number of bytes used for the coordinates.
@@ -84,7 +83,7 @@ static from_feature_collection(feature_collection,
   const vertices = [new Uint8Array(coord_codes.buffer)]
   properties.set("id", ["Dummy feather row"])
 
-  i = 0;  
+  i = 0;
   for (let feature of projected.features) {
     // start at one; the first slot is reserved for caching the full
     // feature list
@@ -93,6 +92,10 @@ static from_feature_collection(feature_collection,
 
     for (let [k, v] of Object.entries(feature.properties)) {
       if (!properties.get(k)) {properties.set(k, [])}
+      if (typeof(v) === "object") {
+        properties.get(k)[i] = JSON.stringify(v)
+        continue
+      }
       properties.get(k)[i] = v
     }
 
@@ -121,10 +124,13 @@ static from_feature_collection(feature_collection,
       for (let polygon of loc_coordinates) {
         const { coords, vertices } = TriFeather.polygon_to_triangles(polygon);
         // Allow coordinate lookups by treating them as a single 64-bit int.
-        const bigint_coords = new BigInt64Array(new Float32Array(coords.flat(3)).buffer);
+        const bigint_coords = new Float64Array(new Float32Array(coords.flat(3)).buffer);
         // Reduce to the indices of the master lookup table.
-        const lookup_points = vertices.map(vx => coord_indices.get(bigint_coords[vx]))
-        all_vertices.push(...lookup_points)
+        for (let vertex of vertices) {
+          all_vertices[all_vertices.length] = coord_indices.get(bigint_coords[vertex])
+        }
+//        const lookup_points = vertices.map(vx => coord_indices.get(bigint_coords[vx]))
+//        all_vertices.push(...lookup_points)
       }
       const [start, end] = extent(all_vertices)
       const diff = end - start
@@ -134,7 +140,7 @@ static from_feature_collection(feature_collection,
       // Normalize the vertices around the lowest element.
       // Allows some vertices to be stored at a lower resolution.
       for (let j=0; j<all_vertices.length; j++) {
-        all_vertices[j] = all_vertices[j]-start 
+        all_vertices[j] = all_vertices[j]-start
       }
 
       // Determine the type based on the offset.
@@ -148,7 +154,7 @@ static from_feature_collection(feature_collection,
       } else {
         // Will not allow more than 4 billion points on a single feature,
         // should be fine.
-        coord_resolutions[i] = 32 
+        coord_resolutions[i] = 32
         MyArray = Uint32Array
       }
       vertices[i] = MyArray.from(all_vertices)
@@ -167,9 +173,11 @@ static from_feature_collection(feature_collection,
     for (const [k, v] of properties.entries()) {
       if (k in cols) {
         // silently ignore.
-        //throw `Duplicate column names--rename ${k} `; 
+        //throw `Duplicate column names--rename ${k} `;
       }
-      cols[k] = arrow.Vector.from({nullable: true, values: v, type: this.infer_type(v, options.dictionary_threshold)})
+      cols[k] = arrow.Vector.from({
+        nullable: true, values: v,
+        type: this.infer_type(v, options.dictionary_threshold)})
     }
 
     const named_columns = []
@@ -190,7 +198,7 @@ static from_feature_collection(feature_collection,
     // determine the most likely type of something based on a number of examples.
 
     // Dictionary threshold: a number between 0 and one. Character strings will be cast
-    // as a dictionary if the unique values of the array are less than dictionary_threshold 
+    // as a dictionary if the unique values of the array are less than dictionary_threshold
     // times as long as the length of all (not null) values.
     const seen = new Set()
     let strings = 0
@@ -202,7 +210,11 @@ static from_feature_collection(feature_collection,
       if (Math.random() > 200/array.length) {continue} // Only check a subsample for speed. Try
       // to get about 200 instances for each row.
       if (el === undefined || el === null) {
-        continue 
+        continue
+      }
+      if (typeof(el) === "object") {
+        strings += 1
+        seen.add(Math.random())
       }
         if (typeof(el) === "string") {
           strings += 1
@@ -216,7 +228,8 @@ static from_feature_collection(feature_collection,
 
           }
         } else {
-          throw `No behavior defined for type ${typeof(el)}` 
+          console.warn(el);
+          throw `Can't convert data to arrow: no behavior defined for type ${typeof(el)}`
         }
       }
                                              if ( strings > 0 ) {
@@ -224,30 +237,30 @@ static from_feature_collection(feature_collection,
                                                if (seen.length < strings.length * .75) {
                                                  return new arrow.Dictionary(new arrow.Utf8(), new arrow.Int32())
                                                } else {
-                                                 return new arrow.Utf8() 
+                                                 return new arrow.Utf8()
                                                }
                                              }
                                              if (floats > 0) {
-                                               return new arrow.Float32() 
+                                               return new arrow.Float32()
                                              }
                                              if (Math.abs(max_int) < 2**8) {
                                                return new arrow.Int8()
                                              }
                                              if (Math.abs(max_int) < 2**16) {
-                                               return new arrow.Int16() 
+                                               return new arrow.Int16()
                                              }
                                              if (Math.abs(max_int) < 2**32) {
-                                               return new arrow.Int32() 
+                                               return new arrow.Int32()
                                              } else {
-                                               return new arrow.Int64() 
+                                               return new arrow.Int64()
                                              }
 
                                             }
 
 
       coord(ix) {
-        // NB this manually specifies little-endian, although 
-        // Arrow can potentially support big-endian frames under 
+        // NB this manually specifies little-endian, although
+        // Arrow can potentially support big-endian frames under
         // certain (future?) circumstances.
         return [
           this.coord_buffer.getFloat32(ix*4*2, true),
@@ -288,18 +301,18 @@ prepare_features_for_regl() {
         data: feature.vertices,
         type: "uint" + feature.coord_resolution,
         length: feature.vertices.length, // in bytes
-        count: feature.vertices.length / feature.coord_resolution * 8 
+        count: feature.vertices.length / feature.coord_resolution * 8
      }))
     const f = {
       ix,
       vertices: element_handler.get(ix),
       coords: {buffer: this.regl_coord_buffer, stride: 8, offset:  feature.coord_buffer_offset * 8},
       properties: feature
-    }; // Other data can be bound to this object if desired, which makes programming easier than 
+    }; // Other data can be bound to this object if desired, which makes programming easier than
     // working off the static feather frame.
     features.push(f)
   }
-  
+
 }
 
 get bbox() {
@@ -315,18 +328,18 @@ get bbox() {
       yield feature
    }
   }
-      
+
       static lookup_map_and_coord_buffer (geojson) {
-        const all_coordinates = new Float32Array(geojson.features.filter(d => d.geometry).map(d => d.geometry.coordinates).flat(4))  
+        const all_coordinates = new Float32Array(geojson.features.filter(d => d.geometry).map(d => d.geometry.coordinates).flat(4))
         const feature_collection = geojson
-        const codes = new BigInt64Array(all_coordinates.buffer)
+        const codes = new Float64Array(all_coordinates.buffer)
         const indices = new Map()
         for (let code of codes) {
           if (!indices.has(code)) {
-            indices.set(code, indices.size) 
+            indices.set(code, indices.size)
           }
         }
-        const points = new BigInt64Array(indices.size)
+        const points = new Float64Array(indices.size)
         for (let [k, v] of indices.entries()) {
           points[v] = k
         }

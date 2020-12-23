@@ -14,10 +14,8 @@ program
   "Count fields to use for dot-density; must be keys in the geojson properties")
   .requiredOption('-f, --files <files...>', 'geojson files to parse');
 
-
 program.parse(process.argv);
 
-// Note--this is actually an IPC batch that we write out, not a full table.
 
 import fs from 'fs';
 
@@ -29,11 +27,14 @@ for (let fname of fnames) {
   }
   var data = fs.readFileSync(fname, 'utf-8');
 
+  console.log(fname, "loaded")
   const feature_collection = JSON.parse(data)
-
+  console.log(fname, "parsed")
   let trifeather = TriFeather
     .from_feature_collection(feature_collection, geoAlbersUsaTerritories().scale(1e9))
   
+  console.log(fname, "triangulated")
+
   let t, destname;
   const counts = program.opts()['counts']
   if (!counts) {
@@ -41,13 +42,14 @@ for (let fname of fnames) {
     destname = fname.replace(".geojson", ".trifeather")
       .replace(".json", ".trifeather")
   } else {
+    
     t = random_points(trifeather, counts, 1, "feather")
     destname = fname.replace(".geojson", ".feather")
       .replace(".json", ".feather")
   }
   
   
-  let b = Buffer.from(t.serialize("binary", false))
+  let b = Buffer.from(t.serialize("binary", true))
 //  b = Buffer.from("hi")
   const fd = fs.openSync(destname, "w")
   fs.writeSync(fd, b)

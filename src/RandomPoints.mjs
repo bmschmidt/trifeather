@@ -5,6 +5,8 @@ const { shuffler, sum, range, extent } = sh
 import rand from 'd3-random' 
 const { randomLcg } = rand;
 
+console.log("Random points loaded")
+
 export function random_points(frame, fields, n_represented = 1, value = "feather") {
   const counts_by_field = fields.map(field => sum(frame.t.getColumn(field).toArray()))
   const all_coords = fields.map((f, i) => new Float32Array(Math.round(counts_by_field[i]/n_represented * 2.05)))
