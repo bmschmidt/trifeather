@@ -1,6 +1,8 @@
 import {
   Int32, Int64,  Int16, Int8, Float32, Dictionary,
-  Table, Column, Vector, Uint8Vector, Uint32Vector, Float64Vector, Float32Vector} from '@apache-arrow/es5-cjs';
+  Builder, Binary, Utf8,
+  Table, Column, Vector, Uint8Vector, Uint32Vector,
+  Float64Vector, Float32Vector} from '@apache-arrow/es5-cjs';
 
 import earcut from 'earcut';
 
@@ -269,7 +271,6 @@ static from_feature_collection(feature_collection,
         ]
       }
       static pack_binary(els) {
-        const { Builder, Binary } = arrow;
         const binaryBuilder = Builder.new({
           type: new Binary(),
           nullValues: [null, undefined],
@@ -290,6 +291,7 @@ static from_feature_collection(feature_collection,
 
 
       }
+
 prepare_features_for_regl() {
   this.features = []
   const {t, features, regl, element_handler, regl_coord_buffer} = this;

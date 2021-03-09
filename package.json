@@ -1,10 +1,11 @@
 {
   "private": false,
   "name": "trifeather",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Pre-triangulated feather files",
   "main": "src/index.js",
   "unpkg": "lib/trifeather.js",
+  "type": "module",
   "scripts": {
     "build": "webpack --env dev && webpack --env build",
     "dev": "webpack --progress --watch --env dev",
@@ -14,7 +15,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@apache-arrow/es5-cjs": "^2.0.0",
+    "@apache-arrow/es5-cjs": "^3.0.0",
     "commander": "^6.2.1",
     "d3-array": "^2.9.1",
     "d3-geo": "^2.0.1",
