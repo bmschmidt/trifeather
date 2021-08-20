@@ -44,6 +44,7 @@ static polygon_to_triangles(polygon) {
   return { coords, vertices }
 }
 
+
 static from_feature_collection(feature_collection,
                                 projection,
                                 options = {dictionary_threshold: .75, clip_to_sphere: false}) {
@@ -235,30 +236,30 @@ static from_feature_collection(feature_collection,
           throw `Can't convert data to arrow: no behavior defined for type ${typeof(el)}`
         }
       }
-                                             if ( strings > 0 ) {
-                                               // moderate overlap
-                                               if (seen.length < strings.length * .75) {
-                                                 return new Dictionary(new Utf8(), new Int32())
-                                               } else {
-                                                 return new Utf8()
-                                               }
-                                             }
-                                             if (floats > 0) {
-                                               return new Float32()
-                                             }
-                                             if (Math.abs(max_int) < 2**8) {
-                                               return new Int8()
-                                             }
-                                             if (Math.abs(max_int) < 2**16) {
-                                               return new Int16()
-                                             }
-                                             if (Math.abs(max_int) < 2**32) {
-                                               return new Int32()
-                                             } else {
-                                               return new Int64()
-                                             }
+      if ( strings > 0 ) {
+        // moderate overlap
+        if (seen.length < strings.length * .75) {
+          return new Dictionary(new Utf8(), new Int32())
+        } else {
+          return new Utf8()
+        }
+      }
+      if (floats > 0) {
+        return new Float32()
+      }
+      if (Math.abs(max_int) < 2**8) {
+        return new Int32()
+      }
+      if (Math.abs(max_int) < 2**16) {
+        return new Int32()
+      }
+      if (Math.abs(max_int) < 2**32) {
+        return new Int32()
+      } else {
+        return new Int64()
+      }
 
-                                            }
+    }
 
 
       coord(ix) {
