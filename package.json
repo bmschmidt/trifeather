@@ -1,7 +1,7 @@
 {
   "private": false,
   "name": "trifeather",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Pre-triangulated feather files",
   "main": "src/index.js",
   "unpkg": "lib/trifeather.js",
