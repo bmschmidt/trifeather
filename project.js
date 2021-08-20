@@ -1,6 +1,6 @@
 import TriFeather from './src/TriFeather.js';
 import { random_points } from './src/RandomPoints.js';
-
+import JSONStream from 'JSONStream'
 import d3geo from 'd3-geo';
 import geoproj from 'd3-geo-projection';
 import geo from 'geo-albers-usa-territories';
@@ -22,7 +22,6 @@ program
   .option('-k, --keep [keep...]',
   "Geojson properties to pass into derived points without alteration. (As utf8)")
   .option('-p --projection <projection>', "Projection", "geoAlbersUsaTerritories")
-
   .requiredOption('-f, --files <files...>', 'geojson files to parse');
 
 program.parse(process.argv);
@@ -30,20 +29,51 @@ program.parse(process.argv);
 const proj = d3geo[program.projection] || geo[program.projection] || geoproj[program.projection]
 
 console.log(proj)
-const projection = proj().scale(1e12)
+const projection = proj().scale(1e10)
 
 import fs from 'fs';
 
 const fnames = program.opts()['files']
+const counts = program.opts()['counts']
+const keep = program.opts()['keep'] || []
+
 for (let fname of fnames) {
   console.log(fname)
   if (!(fname.endsWith(".json") || fname.endsWith(".geojson"))) {
     throw "Suffix should be 'json' or 'geojson', but " + fname + " found"
   }
-  var data = fs.readFileSync(fname, 'utf-8');
+  
+  const destname = fname.replace(".geojson", counts ? ".feather" : ".trifeather")
+    .replace(".json", counts ? ".feather" : ".trifeather")
 
+  if (fs.existsSync(destname)) {
+    console.log("Skipping " + destname + " because it already exists")
+    continue
+  }
+
+
+  /*var data = fs.readFileSync(fname, 'utf-8');
   console.log(fname, "loaded")
   const feature_collection = JSON.parse(data)
+  */
+
+  let stream = fs.createReadStream(fname, {encoding: 'utf8'});
+  let parser = JSONStream.parse('$*');
+  stream.pipe(parser)
+
+  let feature_collection_promise = new Promise((resolve, reject) => {
+    let d = {};
+    parser.on('data', (data) => {
+      d[data.key] = data.value;
+    }).on('end', () => {
+      // I don't really get streaming in node, so I'm wrapping
+      // it in a promise.
+      resolve(d)
+    })
+  })
+
+  const feature_collection = await feature_collection_promise;
+
   console.log(fname, "parsed... Creating triangulation")
 
   let trifeather = TriFeather
@@ -51,17 +81,11 @@ for (let fname of fnames) {
 
   console.log(fname, "triangulated")
 
-  let t, destname;
-  const counts = program.opts()['counts']
+  let t;
   if (!counts) {
     t = trifeather.t
-    destname = fname.replace(".geojson", ".trifeather")
-      .replace(".json", ".trifeather")
   } else {
-    const keep = program.opts()['keep'] || []
     t = random_points(trifeather, counts, 1, "feather", keep)
-    destname = fname.replace(".geojson", ".feather")
-      .replace(".json", ".feather")
   }
   let b = Buffer.from(t.serialize("binary", false))
   const fd = fs.openSync(destname, "w")
