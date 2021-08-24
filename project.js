@@ -1,11 +1,13 @@
+#!/usr/bin/env node
+
 import TriFeather from './src/TriFeather.js';
 import { random_points } from './src/RandomPoints.js';
 import JSONStream from 'JSONStream'
-import d3geo from 'd3-geo';
-import geoproj from 'd3-geo-projection';
-import geo from 'geo-albers-usa-territories';
-const geoAlbersUsaTerritories = geo.geoAlbersUsaTerritories
+import * as d3geo from 'd3-geo';
+import * as geoproj from 'd3-geo-projection';
+import * as geoAlbersUsaTerritories from './src/geo-albers-usa-territories.js';
 import pkg from 'commander';
+
 const { program } = pkg;
 
 const projections = {
@@ -26,10 +28,10 @@ program
 
 program.parse(process.argv);
 // Look in several places.
-const proj = d3geo[program.projection] || geo[program.projection] || geoproj[program.projection]
+const proj = d3geo[program.projection] || geoAlbersUsaTerritories[program.projection] || geoproj[program.projection]
 
 console.log(proj)
-const projection = proj().scale(1e10)
+const projection = proj().scale(1e12)
 
 import fs from 'fs';
 

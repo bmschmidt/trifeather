@@ -131,7 +131,7 @@ function random_points2(frame, fields, n_represented = 1, value = "feather", kee
       classes,
       ...keep.map((d, i) => Utf8Vector.from(keepers[i]))
     ],
-    ['x', 'y', 'class', ...keep]
+    ['x', 'y', 'category', ...keep]
   )
   return my_table2
 }
@@ -246,7 +246,7 @@ export function random_points(frame, fields, n_represented = 1, value = "feather
       classes,
       ...keep.map((d, i) => Utf8Vector.from(keepers[i]))
     ],
-    ['x', 'y', 'class', ...keep]
+    ['x', 'y', 'category', ...keep]
   )
   return my_table2
 }

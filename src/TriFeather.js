@@ -52,7 +52,7 @@ static from_feature_collection(feature_collection,
   if (projection === undefined) {throw "Must define a projection"}
   // feature_collections: a (parsed) geoJSON object.
   // projection: a d3.geoProjection instance;
-  // eg, d3.geoMollweide().transform([10, 20])
+  // eg, d3.geoMollweide().translate([10, 20])
   // options:
 
   const properties = new Map()
@@ -231,9 +231,11 @@ static from_feature_collection(feature_collection,
           } else {
 
           }
+        } else if (typeof(el) === "boolean") {
+          
         } else {
           console.warn(el);
-          throw `Can't convert data to arrow: no behavior defined for type ${typeof(el)}`
+          throw `Can't convert ${el} to arrow: no behavior defined for type ${typeof(el)}`
         }
       }
       if ( strings > 0 ) {
@@ -290,32 +292,36 @@ static from_feature_collection(feature_collection,
           {data: this.t.get(0).vertices, type: "float", usage: "static"})
         this.prepare_features_for_regl()
 
-
       }
 
-prepare_features_for_regl() {
-  this.features = []
-  const {t, features, regl, element_handler, regl_coord_buffer} = this;
-  // Start at 1, not zero, to avoid the dummy.
-  for (let ix = 1; ix<this.t.length; ix++) {
-    const feature = this.t.get(ix)
-    element_handler.set(ix, this.regl.elements({
-        primitive: 'points',
-        usage: 'static',
-        data: feature.vertices,
-        type: "uint" + feature.coord_resolution,
-        length: feature.vertices.length, // in bytes
-        count: feature.vertices.length / feature.coord_resolution * 8
-     }))
-    const f = {
-      ix,
-      vertices: element_handler.get(ix),
-      coords: {buffer: this.regl_coord_buffer, stride: 8, offset:  feature.coord_buffer_offset * 8},
-      properties: feature
-    }; // Other data can be bound to this object if desired, which makes programming easier than
-    // working off the static feather frame.
-    features.push(f)
-  }
+  prepare_features_for_regl() {
+    this.features = []
+    const {t, features, regl, element_handler, regl_coord_buffer} = this;
+    // Start at 1, not zero, to avoid the dummy.
+    for (let ix = 1; ix<this.t.length; ix++) {
+      const feature = this.t.get(ix)
+      element_handler.set(
+        ix,
+        this.regl.elements({
+          primitive: 'triangles',
+          usage: 'static',
+          data: feature.vertices,
+          type: "uint" + feature.coord_resolution,
+          length: feature.vertices.length, // in bytes
+          count: feature.vertices.length / feature.coord_resolution * 8
+      }))
+      const f = {
+        ix,
+        vertices: element_handler.get(ix),
+        coords: {
+          buffer: this.regl_coord_buffer, 
+          stride: 8, 
+          offset: feature.coord_buffer_offset * 8},
+        properties: feature
+      }; // Other data can be bound to this object if desired, which makes programming easier than
+      // working off the static feather frame.
+      features.push(f)
+    }
 
 }
 

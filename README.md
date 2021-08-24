@@ -28,10 +28,25 @@ Trifeather.from_feature_collection(await fetch("file.geojson").then(d => JSON.pa
 Storing as triangles also happens to allow
 much faster generation of random points in polygons than traditional methods.
 
+# Maps
 
-## Node usage.
+I've built some mapping functions into the library as 'TripMap.js'
 
-The `project.js` file can be used to convert from geojson to the trifeather format.
+# Node triangulation.
+
+The `project.js` program can be used to convert from geojson to the trifeather format.
 
 It currently only accepts items which are a feature collection where all constituent
 elements are polygons or multipolygons.
+
+To generate feather files from a shapefile, pass them via the args. Multiple files can be created at once.
+
+```sh
+node project.js --files census/states/*.geojson
+```
+
+To generate random points inside the polygons based on counts in the geojson, pass them instead.
+
+```sh
+node project.js --files geojson/*.geojson --counts Black White Asian Hispanic "American Indian and Alaska Native" "Other" "Two or more"
+```
