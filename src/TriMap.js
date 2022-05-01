@@ -34,26 +34,28 @@ void main() {
 `
 
 const alpha_color_merge = `
+// Takes the alpha channel from one buffer, and the rgb colors
+// from the other. 
 precision mediump float;
   varying vec2 uv;
   uniform sampler2D color;
   uniform sampler2D alpha;
   uniform float wRcp, hRcp;
   void main() {
-  vec4 col = texture2D(color, uv);
-  vec4 alph = texture2D(alpha, uv);
-  float a = alph.a;
-  if (a < 1./255.) {
-    discard;
-  } else if (col.a == 0.) {
-    discard;
-  } else if (a < .99) {
-    a = .25;
-  } else {
-    a = 0.75;
-    // col = vec4(.5, .5, .5, 1.);
-  }
-  gl_FragColor = vec4(col.rgb * a, a);
+    vec4 col = texture2D(color, uv);
+    vec4 alph = texture2D(alpha, uv);
+    float a = alph.a;
+    if (a < 1./255.) {
+      discard;
+    } else if (col.a == 0.) {
+      discard;
+    } else if (a < .99) {
+      a = .25;
+    } else {
+      a = 0.75;
+      // col = vec4(.5, .5, .5, 1.);
+    }
+      gl_FragColor = vec4(col.rgb * a, a);
   }               
 `
 
@@ -108,16 +110,14 @@ function rgb2glcolor(col) {
   const {r, g, b} = rgb(col)
   return [r, g, b, 255]
 }
-
 export default class TriMap {
   constructor(div, layers, regl) {
     this.div = div
-    this.regl =regl
+    this.regl = regl
     for (let layer of layers) {
       layer.bind_to_regl(this.regl) 
     }
     this.layers = layers;
-
     const {width, height} = div
     this.width = width || window.innerWidth
     this.height = height || window.innerHeight
@@ -137,8 +137,8 @@ export default class TriMap {
   add_layer(layer) {
     layer.bind_to_regl(this.regl)
     this.layers.push(layer)
-
   }
+
   reglize_frag(regl, frag_shader = edge_detection, blend = false) {
     // Turn a frag shader into a regl call.
     return regl({
@@ -175,17 +175,19 @@ export default class TriMap {
             hRcp: ({viewportHeight}) => 1.0 / viewportHeight
           },
         })
-  }
-  get fill_buffer() {
-    if (!this._fill_buffer) {
-      const { regl } = this;
-      this._fill_buffer = regl.buffer(
-        { data: [-4, -4, 4, -4, 0, 4] },
-      );
     }
 
-    return this._fill_buffer;
-  }
+    get fill_buffer() {
+      const { regl } = this;
+      if (!this._fill_buffer) {
+        const { regl } = this;
+        this._fill_buffer = regl.buffer(
+          { data: [-4, -4, 4, -4, 0, 4] },
+        );
+      }
+
+      return this._fill_buffer;
+    }
   get filter() {
     return this._filter ? this._filter : function (d) {return true}
   }
@@ -221,7 +223,8 @@ export default class TriMap {
     const fbo = this.regl.framebuffer({
       width: this.width,
       height: this.height,
-      stencil: false
+      stencil: false,
+      depth: false,
     })
     this.buffers.set(name, fbo)
     return this.buffers.get(name)
@@ -317,41 +320,81 @@ export default class TriMap {
 
   get color_func() {
     //return d => [Math.random() * 255, Math.random() * 255, Math.random() * 255];
-    return this._color_function ? this._color_function : p => greyscale(p.ix).slice(0, 3).map(c => c/255)
+    if (!this._color_function) {
+      // The bootstrap equivalents of the HOLC colors.
+      const HOLC_bootstrap = {"A": [40, 167, 69], "B": [23, 162, 184], "C": [255, 193, 7], "D": [220, 53, 69]}
+      this._color_function = function(d) {
+        // Do the defaults include a custom coloring scheme for redline maps? Yes, 
+        // they do. 
+        if (d.properties.holc_grade) {
+          if (HOLC_bootstrap[d.properties.holc_grade]) {            
+            return HOLC_bootstrap[d.properties.holc_grade].map(c => c/255)
+          }
+        }
+        return greyscale(d.ix).slice(0, 3).map(c => c/255)
+      }
+    }
+    return this._color_function
   }
 
-  draw_edges(layer) {
-    
+
+  draw_edges_1(layer) {
     const {regl} = this;
-    const colors = this.fbo("colorpicker")
+    const colors = this.fbo("colors")
     const edges = this.fbo("edges")
 
     colors.use(d => {
       this.regl.clear({color: [0, 0, 0, 0]})
       this.poly_tick(layer)
     })
-/*    this.regl(() => {
-      this.poly_tick(layer)
-    }) */
+
     edges.use(() => {
       this.regl.clear({color: [1, 1, 1, 1]})
-      const shader = this.reglize_frag(this.regl, edge_detection)
+      const shader = this.edge_detect_call
       shader({layer: colors})
     })
+  }
 
+  instantiate_shader(regl, shader, name) {
+    this.calls = this.calls || new Map()
+    if (this.calls.get(name)) {
+      return this.calls.get(name)
+    }
+    const call = this.reglize_frag(regl, shader)
+    this.calls.set(name, call)
+    return call
+  }
+
+  get edge_detect_call() {
+    return this.instantiate_shader(this.regl, edge_detection, "edge_detect_call")
+  }
+
+  get copy_call() {
+    return this.instantiate_shader(this.regl, copy, "copy_call")
+  }
+
+  get edge_propagation_call() {
+    return this.instantiate_shader(this.regl, edge_propagation, "edge_propagation_call")
+  }
+  get alpha_color_merge_call() {
+    return this.instantiate_shader(this.regl, alpha_color_merge, "alpha_color_merge")
+  }
+  draw_edges_2() {
+    
+    const { regl } = this;
     // Copy the edges to a ping-pong shader to be blurred.
+    const edges = this.fbo("edges")
 
     const pingpong = [this.fbo("ping"), this.fbo("pong")]
-    const copier = this.reglize_frag(this.regl, copy_shader)
-
+    const copier = this.copy_call
     const { decay } = this;
     pingpong[0].use(() => {
       regl.clear({color: [0, 0, 0, 0]})
       copier({layer: edges})
     })
 
-    const edge_propagator = this.reglize_frag(this.regl, edge_propagation)
-    let alpha = 1
+    const edge_propagator = this.edge_propagation_call
+    let alpha = 1;
     while (alpha > 1/255) {
       pingpong[1].use(() => {
         regl.clear({color: [0, 0, 0, 0]})
@@ -361,10 +404,18 @@ export default class TriMap {
       // swap the buffers.
       pingpong.reverse()
     }
-    const final_shade = this.reglize_frag(this.regl, alpha_color_merge, true)
-    // First copy the blur
+  }
+
+  
+
+  draw_edges(layer) {
     
-    final_shade({alpha: pingpong[0], color: colors})
+    this.draw_edges_1(layer)
+    this.draw_edges_2()
+    const pingpong = [this.fbo("ping"), this.fbo("pong")]
+    const final_shade = this.alpha_color_merge_call
+    // First copy the blur
+    final_shade({alpha: pingpong[0], color: this.fbo("colors")})
 //    copier({layer: colors})
   }
 
@@ -386,7 +437,6 @@ export default class TriMap {
     if (clear) {
       this.cleanup_point_buffers()
       this._number_of_points = 0
-
       this.random_points = []
     }
 
@@ -435,8 +485,8 @@ export default class TriMap {
   tick(wut) {
     const { regl } = this
     regl.clear({
-      color: [1, 1, 1, 1],
-    })
+      color: [0, 0, 0, 0],
+    }) 
     const alpha = 1
     if (wut === "points") {
       this.point_tick() 
@@ -453,13 +503,16 @@ export default class TriMap {
         this.point_tick()
       })
 
-      const copier = this.reglize_frag(this.regl, copy_shader, true)
+      const copier = this.copy_call
       copier({layer: this.fbo("points")})
     }
 
   }
 
-
+  get copy_call() {
+    return this.instantiate_shader(this.regl, copy_shader, "copy_call")
+  }
+  
   poly_tick(layer) {
     const calls = []
     let i = 0;
@@ -467,7 +520,7 @@ export default class TriMap {
       //if (feature.properties['2020_tot'] === null) {continue}
 
       const {vertices, coords} = feature;
-      
+      if (!vertices) {continue}
       calls.push({
         transform: this.zoom.transform,
         color: this.color_func(feature),

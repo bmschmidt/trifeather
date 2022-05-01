@@ -16,14 +16,19 @@ const projections = {
   mercator: d3geo.geoMercator
 }
 
-program.version('1.1.0');
+program.version('1.1.1');
 
 program
   .option('-c, --counts [counts...]',
   "Count fields to use for dot-density; must be keys in the geojson properties")
+  .option('-n, --names [names...]', `Column names to split count fields into using delimiter. E.g., {'white_non-hispanic': 31}
+  with names ['race', 'ethnicity'] will add 31 points with "race" of "white" and "ethnicity" of "non-hispanic." If left blank, 
+  the column will be named "category" and no splitting will occur.`)
+  .option('-d, --delimiter <delimiter>', 
+  `Delimiter character. in conjunction with names. Default "_" if more than one "names" passed.`)
   .option('-k, --keep [keep...]',
-  "Geojson properties to pass into derived points without alteration. (As utf8)")
-  .option('-p --projection <projection>', "Projection", "geoAlbersUsaTerritories")
+    "Geojson properties to pass into derived points without alteration. (Saved as utf8 regardless of type.)")
+  .option('-p --projection <projection>', "Projection. String representing d3-geo or d3-geo-projection factory function. Will be scaled up by a factor of 1e12 to support zoom.", "geoAlbersUsaTerritories")
   .requiredOption('-f, --files <files...>', 'geojson files to parse');
 
 program.parse(process.argv);
@@ -31,12 +36,14 @@ program.parse(process.argv);
 const proj = d3geo[program.projection] || geoAlbersUsaTerritories[program.projection] || geoproj[program.projection]
 
 console.log(proj)
-const projection = proj().scale(1e12)
+const projection = proj().scale(1)
 
 import fs from 'fs';
 
 const fnames = program.opts()['files']
 const counts = program.opts()['counts']
+const names = program.opts()['names'] || ["category"]
+const delimiter = program.opts()['delimiter'] || names.length == 1 ? "ARBITRYAR STRING_THAT_WONT_OCCURR IN TEXT" : "_"
 const keep = program.opts()['keep'] || []
 
 for (let fname of fnames) {
@@ -87,7 +94,7 @@ for (let fname of fnames) {
   if (!counts) {
     t = trifeather.t
   } else {
-    t = random_points(trifeather, counts, 1, "feather", keep)
+    t = random_points(trifeather, counts, 1, "feather", keep, names, delimiter)
   }
   let b = Buffer.from(t.serialize("binary", false))
   const fd = fs.openSync(destname, "w")

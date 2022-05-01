@@ -1,8 +1,16 @@
 import {
-  Int32, Int64,  Int16, Int8, Float32, Dictionary,
-  Builder, Binary, Utf8,
-  Table, Column, Vector, Uint8Vector, Uint32Vector,
-  Float64Vector, Float32Vector} from '@apache-arrow/es5-cjs';
+  Int32, Int64,  Int16, Int8, Float32, Float64,
+  Dictionary,
+  Binary, Utf8,
+  Uint8,
+  Uint16,
+  Uint32,
+  makeVector,
+  makeBuilder,
+  vectorFromArray,
+  tableToIPC,
+  tableFromIPC,
+  Table, Vector, tableFromArrays} from 'apache-arrow';
 
 import earcut from 'earcut';
 
@@ -17,7 +25,7 @@ export default class TriFeather {
 
 constructor(bytes) {
   this.bytes = bytes
-  this.t = Table.from(bytes)
+  this.t = tableFromIPC(bytes)
 }
 
 get n_coords() {
@@ -70,6 +78,7 @@ static from_feature_collection(feature_collection,
   let clip_shape;
 
   let projected = geoProject(feature_collection, projection)
+  console.log(projected.features[0].geometry.coordinates.flat(1))
   if (options.clip_to_sphere) {
     clip_shape = geoProject({"type": "Sphere"}, projection)
     for (let feature of projected.features) {
@@ -106,7 +115,7 @@ static from_feature_collection(feature_collection,
 
     const projected = feature.geometry
     const [x, y] = path.centroid(projected)
-    const bbox = new Float32Array(path.bounds(projected).flat())
+    const bbox = vectorFromArray(path.bounds(projected).flat())
 
     centroids[0][i] = x; centroids[1][i] = y
     areas[i] = path.area(projected)
@@ -129,7 +138,8 @@ static from_feature_collection(feature_collection,
       for (let polygon of loc_coordinates) {
         const { coords, vertices } = TriFeather.polygon_to_triangles(polygon);
         // Allow coordinate lookups by treating them as a single 64-bit int.
-        const bigint_coords = new Float64Array(new Float32Array(coords.flat(3)).buffer);
+        const r = new Float32Array(coords.flat(3).buffer)
+        const bigint_coords = new Float64Array(makeVector(r));
         // Reduce to the indices of the master lookup table.
         for (let vertex of vertices) {
           all_vertices[all_vertices.length] = coord_indices.get(bigint_coords[vertex])
@@ -164,34 +174,32 @@ static from_feature_collection(feature_collection,
       }
       vertices[i] = MyArray.from(all_vertices)
     }
-
     const cols = {
       "vertices": this.pack_binary(vertices),
       "bounds": this.pack_binary(bounds),
-      "coord_resolution": Uint8Vector.from(coord_resolutions),
-      "coord_buffer_offset": Uint32Vector.from(coord_buffer_offset),
-      "pixel_area": Float64Vector.from(areas),
-      "centroid_x": Float32Vector.from(centroids[0]),
-      "centroid_y": Float32Vector.from(centroids[1])
+      "coord_resolution": vectorFromArray(coord_resolutions, new Uint8),
+      "coord_buffer_offset": vectorFromArray(coord_buffer_offset, new Uint32),
+      "pixel_area": vectorFromArray(areas, new Float64),
+      "centroid_x": vectorFromArray(centroids[0], new Float32),
+      "centroid_y": vectorFromArray(centroids[1], new Float32)
     }
     for (const [k, v] of properties.entries()) {
       if (k in cols) {
         // silently ignore.
         //throw `Duplicate column names--rename ${k} `;
       }
-      cols[k] = Vector.from({
-        nullable: true, values: v,
-        type: this.infer_type(v, options.dictionary_threshold)})
-    }
+      const builder = makeBuilder({
+        type: this.infer_type(v, options.dictionary_threshold),
+        nullValues: [null, undefined],
+        highWaterMark: 2**16
+      })
+      for (let el of v) { builder.append(el)  }
 
-    const named_columns = []
-    for (const [k, v] of Object.entries(cols)) {
-      //      console.log(k, v)
-      named_columns.push(Column.new(k, v))
+      cols[k] = builder.finish().toVector()
     }
-    const tab = Table.new(...named_columns)
+    const tab = new Table(cols)
 
-    const afresh = tab.serialize()
+    const afresh = tableToIPC(tab)
     return new TriFeather(afresh)
 
   }
@@ -274,7 +282,7 @@ static from_feature_collection(feature_collection,
         ]
       }
       static pack_binary(els) {
-        const binaryBuilder = Builder.new({
+        const binaryBuilder = makeBuilder({
           type: new Binary(),
           nullValues: [null, undefined],
           highWaterMark: 2**16
