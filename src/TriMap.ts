@@ -1,24 +1,24 @@
-import { rgb } from 'd3-color';
-import { range, extent as d3extent, mean } from 'd3-array';
-import { scaleSqrt, scaleLinear, scaleOrdinal } from 'd3-scale';
-import { select } from 'd3-selection';
-import { zoom } from 'd3-zoom';
+import { rgb } from "d3-color";
+import { range, extent as d3extent, mean } from "d3-array";
+import { scaleSqrt, scaleLinear, scaleOrdinal } from "d3-scale";
+import { select } from "d3-selection";
+import { zoom } from "d3-zoom";
 
-const greys = function () {
-  const out = []
+const greys = (function () {
+  const out = [];
   for (let i of range(10)) {
     for (let j of range(10)) {
       for (let k of range(10)) {
-        out.push([118 + i * 2, 118 + j*2, 118 + k*2, 255]) 
+        out.push([118 + i * 2, 118 + j * 2, 118 + k * 2, 255]);
       }
     }
   }
-  return out  
-}()
+  return out;
+})();
 
-const greyscale = scaleOrdinal().range(greys)
-  
-  const copy_shader = `
+const greyscale = scaleOrdinal().range(greys);
+
+const copy_shader = `
 precision mediump float;
 varying vec2 uv;
 uniform sampler2D tex;
@@ -31,7 +31,7 @@ void main() {
     discard;
   }
 }        
-`
+`;
 
 const alpha_color_merge = `
 // Takes the alpha channel from one buffer, and the rgb colors
@@ -57,7 +57,7 @@ precision mediump float;
     }
       gl_FragColor = vec4(col.rgb * a, a);
   }               
-`
+`;
 
 const edge_propagation = `precision mediump float;
           varying vec2 uv;
@@ -79,7 +79,7 @@ const edge_propagation = `precision mediump float;
             vec4 current = texture2D(tex, uv);
             gl_FragColor = max(max_neighbor, current);
           }
-`
+`;
 
 const edge_detection = `
           precision mediump float;
@@ -100,59 +100,56 @@ const edge_detection = `
               gl_FragColor = vec4(0., 0., 0., 1.);
             }
           }
-        `
-
-
-
-
+        `;
 
 function rgb2glcolor(col) {
-  const {r, g, b} = rgb(col)
-  return [r, g, b, 255]
+  const { r, g, b } = rgb(col);
+  return [r, g, b, 255];
 }
 export default class TriMap {
   constructor(div, layers, regl) {
-    this.div = div
-    this.regl = regl
+    this.div = div;
+    this.regl = regl;
     for (let layer of layers) {
-      layer.bind_to_regl(this.regl) 
+      layer.bind_to_regl(this.regl);
     }
     this.layers = layers;
-    const {width, height} = div
-    this.width = width || window.innerWidth
-    this.height = height || window.innerHeight
-    this.set_magic_numbers()
-    this.prepare_div(width, height)
-    this.color_map = this.regl.texture( {
+    const { width, height } = div;
+    this.width = width || window.innerWidth;
+    this.height = height || window.innerHeight;
+    this.set_magic_numbers();
+    this.prepare_div(width, height);
+    this.color_map = this.regl.texture({
       width: 128,
-      format: "rgba", 
+      format: "rgba",
       height: 1,
-      data: range(128*4)})
+      data: range(128 * 4),
+    });
 
-    this.set_renderer()
+    this.set_renderer();
 
-    this.random_points = []
+    this.random_points = [];
   }
 
   add_layer(layer) {
-    layer.bind_to_regl(this.regl)
-    this.layers.push(layer)
+    layer.bind_to_regl(this.regl);
+    this.layers.push(layer);
   }
 
   reglize_frag(regl, frag_shader = edge_detection, blend = false) {
     // Turn a frag shader into a regl call.
     return regl({
-          blend: {
-            enable: blend,
-            func: {
-              srcRGB: 'one',
-              srcAlpha: 'one',
-              dstRGB: 'one minus src alpha',
-              dstAlpha: 'one minus src alpha',
-            }
-          },
-          frag: frag_shader,
-          vert: `
+      blend: {
+        enable: blend,
+        func: {
+          srcRGB: "one",
+          srcAlpha: "one",
+          dstRGB: "one minus src alpha",
+          dstAlpha: "one minus src alpha",
+        },
+      },
+      frag: frag_shader,
+      vert: `
             precision mediump float;
             attribute vec2 position;
             varying vec2 uv;
@@ -161,309 +158,348 @@ export default class TriMap {
               gl_Position = vec4(position, 0, 1);
             }
           `,
-          attributes: {
-            position: this.fill_buffer
-          },
-          depth: { enable: false },
-          count: 3,
-          uniforms: {
-            u_decay: (_, {decay}) => decay,
-            tex: (_, {layer}) => layer,
-            color: (_, {color}) => color,
-            alpha: (_, {alpha}) => alpha,
-            wRcp: ({viewportWidth}) => {return 1.0 / viewportWidth},
-            hRcp: ({viewportHeight}) => 1.0 / viewportHeight
-          },
-        })
-    }
+      attributes: {
+        position: this.fill_buffer,
+      },
+      depth: { enable: false },
+      count: 3,
+      uniforms: {
+        u_decay: (_, { decay }) => decay,
+        tex: (_, { layer }) => layer,
+        color: (_, { color }) => color,
+        alpha: (_, { alpha }) => alpha,
+        wRcp: ({ viewportWidth }) => {
+          return 1.0 / viewportWidth;
+        },
+        hRcp: ({ viewportHeight }) => 1.0 / viewportHeight,
+      },
+    });
+  }
 
-    get fill_buffer() {
+  get fill_buffer() {
+    const { regl } = this;
+    if (!this._fill_buffer) {
       const { regl } = this;
-      if (!this._fill_buffer) {
-        const { regl } = this;
-        this._fill_buffer = regl.buffer(
-          { data: [-4, -4, 4, -4, 0, 4] },
-        );
-      }
-
-      return this._fill_buffer;
+      this._fill_buffer = regl.buffer({ data: [-4, -4, 4, -4, 0, 4] });
     }
+
+    return this._fill_buffer;
+  }
   get filter() {
-    return this._filter ? this._filter : function (d) {return true}
+    return this._filter
+      ? this._filter
+      : function (d) {
+          return true;
+        };
   }
 
   set filter(f) {
-    this._filter = f
+    this._filter = f;
   }
-  
-  cleanup() {
-    this.cleanup_point_buffers()
-    this.cleanup_frame_buffers()
-    this.cleanup_poly_buffers()
 
+  cleanup() {
+    this.cleanup_point_buffers();
+    this.cleanup_frame_buffers();
+    this.cleanup_poly_buffers();
   }
 
   cleanup_poly_buffers() {
-   // pass 
+    // pass
   }
-  
+
   cleanup_frame_buffers() {
     if (this.buffers) {
       for (let buffer of this.buffers.values()) {
-        buffer.destroy() 
+        buffer.destroy();
       }
     }
   }
 
   fbo(name) {
-    this.buffers = this.buffers || new Map()
+    this.buffers = this.buffers || new Map();
     if (this.buffers.get(name)) {
-      return this.buffers.get(name) 
+      return this.buffers.get(name);
     }
     const fbo = this.regl.framebuffer({
       width: this.width,
       height: this.height,
       stencil: false,
       depth: false,
-    })
-    this.buffers.set(name, fbo)
-    return this.buffers.get(name)
+    });
+    this.buffers.set(name, fbo);
+    return this.buffers.get(name);
   }
 
-
-  
   set_magic_numbers() {
-    
     // It's a major pain to align regl with d3 scales.
-    
+
     const { layers, width, height } = this;
-    
+
     const extent = JSON.parse(JSON.stringify(layers[0].bbox));
     for (let layer of layers) {
       if (layer.t.get(0).get("holc_id")) {
-        continue 
+        continue;
       }
-     const { bbox } = layer
-     extent.x = d3extent([...extent.x, ...bbox.x])
-     extent.y = d3extent([...extent.y, ...bbox.y])
+      const { bbox } = layer;
+      extent.x = d3extent([...extent.x, ...bbox.x]);
+      extent.y = d3extent([...extent.y, ...bbox.y]);
     }
     const scales = {};
 
-    const scale_dat = {'x': {}, 'y': {}}
+    const scale_dat = { x: {}, y: {} };
 
-    for (let [name, dim] of [['x', width], ['y', height]]) {
-      const limits = extent[name]
+    for (let [name, dim] of [
+      ["x", width],
+      ["y", height],
+    ]) {
+      const limits = extent[name];
       scale_dat[name].limits = limits;
-      scale_dat[name].size_range = limits[1] - limits[0]
-      scale_dat[name].pixels_per_unit = dim / scale_dat[name].size_range
+      scale_dat[name].size_range = limits[1] - limits[0];
+      scale_dat[name].pixels_per_unit = dim / scale_dat[name].size_range;
     }
 
     const data_aspect_ratio =
-          scale_dat.x.pixels_per_unit / scale_dat.y.pixels_per_unit
+      scale_dat.x.pixels_per_unit / scale_dat.y.pixels_per_unit;
 
-    let x_buffer_size = 0, y_buffer_size = 0,
-        x_target_size = width, y_target_size = height;
+    let x_buffer_size = 0,
+      y_buffer_size = 0,
+      x_target_size = width,
+      y_target_size = height;
     if (data_aspect_ratio > 1) {
       // There are more pixels in the x dimension, so we need a buffer
       // around it.
       x_target_size = width / data_aspect_ratio;
-      x_buffer_size = (width - x_target_size)/2
+      x_buffer_size = (width - x_target_size) / 2;
     } else {
       y_target_size = height * data_aspect_ratio;
-      y_buffer_size = (height - y_target_size)/2
+      y_buffer_size = (height - y_target_size) / 2;
     }
 
-    scales.x =
-      scaleLinear()
+    scales.x = scaleLinear()
       .domain(scale_dat.x.limits)
-      .range([x_buffer_size, width-x_buffer_size])
+      .range([x_buffer_size, width - x_buffer_size]);
 
-    scales.y =
-      scaleLinear()
+    scales.y = scaleLinear()
       .domain(scale_dat.y.limits)
-      .range([y_buffer_size, height-y_buffer_size])
+      .range([y_buffer_size, height - y_buffer_size]);
 
     this.magic_numbers = window_transform(
       scales.x,
-      scales.y, width, height)
-      .map(d => d.flat())
+      scales.y,
+      width,
+      height
+    ).map((d) => d.flat());
   }
 
   prepare_div(width, height) {
-    this.zoom = {transform: {k: 1, x: 0, y:0}}
-    select(this.div)
-      .call(zoom().extent([[0, 0], [width, height]]).on("zoom", (event, g) => {
-      this.zoom.transform = event.transform
-    }));
+    this.zoom = { transform: { k: 1, x: 0, y: 0 } };
+    select(this.div).call(
+      zoom()
+        .extent([
+          [0, 0],
+          [width, height],
+        ])
+        .on("zoom", (event, g) => {
+          this.zoom.transform = event.transform;
+        })
+    );
     return this.div;
   }
 
   get size_func() {
-    return this._size_function ? this._size_function : () => 1
+    return this._size_function ? this._size_function : () => 1;
   }
 
   set size_func(f) {
-    this._size_function = f
+    this._size_function = f;
   }
 
   set color_func(f) {
-    this._color_function = f
+    this._color_function = f;
   }
 
   get index_color() {
-    return function(f) {
-      if (f._index_color) {return f._index_color}
-      f._index_color = [0, 1, 2].map(d => 1 / 255 * Math.floor(Math.random() * 255))
-      return f._index_color
-    } 
+    return function (f) {
+      if (f._index_color) {
+        return f._index_color;
+      }
+      f._index_color = [0, 1, 2].map(
+        (d) => (1 / 255) * Math.floor(Math.random() * 255)
+      );
+      return f._index_color;
+    };
   }
 
   get color_func() {
     //return d => [Math.random() * 255, Math.random() * 255, Math.random() * 255];
     if (!this._color_function) {
       // The bootstrap equivalents of the HOLC colors.
-      const HOLC_bootstrap = {"A": [40, 167, 69], "B": [23, 162, 184], "C": [255, 193, 7], "D": [220, 53, 69]}
-      this._color_function = function(d) {
-        // Do the defaults include a custom coloring scheme for redline maps? Yes, 
-        // they do. 
+      const HOLC_bootstrap = {
+        A: [40, 167, 69],
+        B: [23, 162, 184],
+        C: [255, 193, 7],
+        D: [220, 53, 69],
+      };
+      this._color_function = function (d) {
+        // Do the defaults include a custom coloring scheme for redline maps? Yes,
+        // they do.
         if (d.properties.holc_grade) {
-          if (HOLC_bootstrap[d.properties.holc_grade]) {            
-            return HOLC_bootstrap[d.properties.holc_grade].map(c => c/255)
+          if (HOLC_bootstrap[d.properties.holc_grade]) {
+            return HOLC_bootstrap[d.properties.holc_grade].map((c) => c / 255);
           }
         }
-        return greyscale(d.ix).slice(0, 3).map(c => c/255)
-      }
+        return greyscale(d.ix)
+          .slice(0, 3)
+          .map((c) => c / 255);
+      };
     }
-    return this._color_function
+    return this._color_function;
   }
 
-
   draw_edges_1(layer) {
-    const {regl} = this;
-    const colors = this.fbo("colors")
-    const edges = this.fbo("edges")
+    const { regl } = this;
+    const colors = this.fbo("colors");
+    const edges = this.fbo("edges");
 
-    colors.use(d => {
-      this.regl.clear({color: [0, 0, 0, 0]})
-      this.poly_tick(layer)
-    })
+    colors.use((d) => {
+      this.regl.clear({ color: [0, 0, 0, 0] });
+      this.poly_tick(layer);
+    });
 
     edges.use(() => {
-      this.regl.clear({color: [1, 1, 1, 1]})
-      const shader = this.edge_detect_call
-      shader({layer: colors})
-    })
+      this.regl.clear({ color: [1, 1, 1, 1] });
+      const shader = this.edge_detect_call;
+      shader({ layer: colors });
+    });
   }
 
   instantiate_shader(regl, shader, name) {
-    this.calls = this.calls || new Map()
+    this.calls = this.calls || new Map();
     if (this.calls.get(name)) {
-      return this.calls.get(name)
+      return this.calls.get(name);
     }
-    const call = this.reglize_frag(regl, shader)
-    this.calls.set(name, call)
-    return call
+    const call = this.reglize_frag(regl, shader);
+    this.calls.set(name, call);
+    return call;
   }
 
   get edge_detect_call() {
-    return this.instantiate_shader(this.regl, edge_detection, "edge_detect_call")
+    return this.instantiate_shader(
+      this.regl,
+      edge_detection,
+      "edge_detect_call"
+    );
   }
 
   get copy_call() {
-    return this.instantiate_shader(this.regl, copy, "copy_call")
+    return this.instantiate_shader(this.regl, copy, "copy_call");
   }
 
   get edge_propagation_call() {
-    return this.instantiate_shader(this.regl, edge_propagation, "edge_propagation_call")
+    return this.instantiate_shader(
+      this.regl,
+      edge_propagation,
+      "edge_propagation_call"
+    );
   }
   get alpha_color_merge_call() {
-    return this.instantiate_shader(this.regl, alpha_color_merge, "alpha_color_merge")
+    return this.instantiate_shader(
+      this.regl,
+      alpha_color_merge,
+      "alpha_color_merge"
+    );
   }
   draw_edges_2() {
-    
     const { regl } = this;
     // Copy the edges to a ping-pong shader to be blurred.
-    const edges = this.fbo("edges")
+    const edges = this.fbo("edges");
 
-    const pingpong = [this.fbo("ping"), this.fbo("pong")]
-    const copier = this.copy_call
+    const pingpong = [this.fbo("ping"), this.fbo("pong")];
+    const copier = this.copy_call;
     const { decay } = this;
     pingpong[0].use(() => {
-      regl.clear({color: [0, 0, 0, 0]})
-      copier({layer: edges})
-    })
+      regl.clear({ color: [0, 0, 0, 0] });
+      copier({ layer: edges });
+    });
 
-    const edge_propagator = this.edge_propagation_call
+    const edge_propagator = this.edge_propagation_call;
     let alpha = 1;
-    while (alpha > 1/255) {
+    while (alpha > 1 / 255) {
       pingpong[1].use(() => {
-        regl.clear({color: [0, 0, 0, 0]})
-        edge_propagator({layer: pingpong[0], decay: decay})
-      })
-      alpha *= decay
+        regl.clear({ color: [0, 0, 0, 0] });
+        edge_propagator({ layer: pingpong[0], decay: decay });
+      });
+      alpha *= decay;
       // swap the buffers.
-      pingpong.reverse()
+      pingpong.reverse();
     }
   }
 
-  
-
   draw_edges(layer) {
-    
-    this.draw_edges_1(layer)
-    this.draw_edges_2()
-    const pingpong = [this.fbo("ping"), this.fbo("pong")]
-    const final_shade = this.alpha_color_merge_call
+    this.draw_edges_1(layer);
+    this.draw_edges_2();
+    const pingpong = [this.fbo("ping"), this.fbo("pong")];
+    const final_shade = this.alpha_color_merge_call;
     // First copy the blur
-    final_shade({alpha: pingpong[0], color: this.fbo("colors")})
-//    copier({layer: colors})
+    final_shade({ alpha: pingpong[0], color: this.fbo("colors") });
+    //    copier({layer: colors})
   }
 
   get decay() {
     const pixels = 8;
-    return Math.exp(Math.log(1/255)/pixels)
+    return Math.exp(Math.log(1 / 255) / pixels);
   }
 
   cleanup_point_buffers() {
-    this.random_points.map(d => {
-      d.x.destroy()
-      d.y.destroy()
-      d.f_num.destroy()
-      d.ix.destroy()
-    })    
+    this.random_points.map((d) => {
+      d.x.destroy();
+      d.y.destroy();
+      d.f_num.destroy();
+      d.ix.destroy();
+    });
   }
 
-  generate_random_points(fields, represented=1, layers, clear = true, index_function) {
+  generate_random_points(
+    fields,
+    represented = 1,
+    layers,
+    clear = true,
+    index_function
+  ) {
     if (clear) {
-      this.cleanup_point_buffers()
-      this._number_of_points = 0
-      this.random_points = []
+      this.cleanup_point_buffers();
+      this._number_of_points = 0;
+      this.random_points = [];
     }
 
     for (let layer of layers) {
       const { regl } = this;
-      const {x_array, y_array, f_num_array} = random_points(layer, fields, represented, index_function);
-      this._number_of_points += x_array.length
+      const { x_array, y_array, f_num_array } = random_points(
+        layer,
+        fields,
+        represented,
+        index_function
+      );
+      this._number_of_points += x_array.length;
       let this_item = {
         x: regl.buffer(x_array),
         y: regl.buffer(y_array),
-        f_num: regl.buffer(f_num_array), 
+        f_num: regl.buffer(f_num_array),
         ix: regl.buffer(range(x_array.length)),
         count: x_array.length,
       };
-      this.random_points.push(this_item)
+      this.random_points.push(this_item);
     }
   }
 
-
   point_tick() {
     const { regl } = this;
-    const calls = []
+    const calls = [];
     // multiple interleaved tranches prevent Trump or Biden from always being on top. This is
     // an issue with Williamson's maps, which over-represent the Hispanic population of DC because it
     // gets plotted last.
 
-    const alpha_scale = scaleSqrt().domain([0, 500]).range([0, 1])
+    const alpha_scale = scaleSqrt().domain([0, 500]).range([0, 1]);
     for (let pointset of this.random_points) {
       calls.push({
         x: pointset.x,
@@ -476,66 +512,70 @@ export default class TriMap {
         count: pointset.count,
         centroid: [0, 0],
         size: this.point_size ? this.point_size : 1,
-        alpha: this.point_opacity > 1/255 ? this.point_opacity : 1/255
-      })
+        alpha: this.point_opacity > 1 / 255 ? this.point_opacity : 1 / 255,
+      });
     }
-    this.render_points(calls)
+    this.render_points(calls);
   }
 
   tick(wut) {
-    const { regl } = this
+    const { regl } = this;
     regl.clear({
       color: [0, 0, 0, 0],
-    }) 
-    const alpha = 1
+    });
+    const alpha = 1;
     if (wut === "points") {
-      this.point_tick() 
+      this.point_tick();
     } else {
       for (let layer of this.layers) {
-//        console.log(layer)
-        this.draw_edges(layer)
+        //        console.log(layer)
+        this.draw_edges(layer);
         return;
       }
-      this.fbo("points").use(d => {
+      this.fbo("points").use((d) => {
         regl.clear({
-          color: [0, 0, 0, 0]
-        })
-        this.point_tick()
-      })
+          color: [0, 0, 0, 0],
+        });
+        this.point_tick();
+      });
 
-      const copier = this.copy_call
-      copier({layer: this.fbo("points")})
+      const copier = this.copy_call;
+      copier({ layer: this.fbo("points") });
     }
-
   }
 
   get copy_call() {
-    return this.instantiate_shader(this.regl, copy_shader, "copy_call")
+    return this.instantiate_shader(this.regl, copy_shader, "copy_call");
   }
-  
+
   poly_tick(layer) {
-    const calls = []
+    const calls = [];
     let i = 0;
     for (let feature of layer) {
       //if (feature.properties['2020_tot'] === null) {continue}
 
-      const {vertices, coords} = feature;
-      if (!vertices) {continue}
+      const { vertices, coords } = feature;
+      if (!vertices) {
+        continue;
+      }
       calls.push({
         transform: this.zoom.transform,
         color: this.color_func(feature),
         u_blob: this.blob_func(feature),
-        centroid: [feature.properties.centroid_x, feature.properties.centroid_y],
+        centroid: [
+          feature.properties.centroid_x,
+          feature.properties.centroid_y,
+        ],
         size: this.size_func(feature),
         alpha: 1,
         vertices: vertices,
-        coords: coords
-      })
+        coords: coords,
+      });
     }
-    this.render_polygons(calls)
+    this.render_polygons(calls);
   }
   get blob_func() {
-    return d => [1, 1, 0.0]
+    return (d) => [1, 1, 0.0];
   }
   get point_vertex_shader() {
     return `
@@ -663,9 +703,11 @@ gl_PointSize = u_size * distortion_factor * size_dilate;
 fragColor = texture2D(u_color_map, vec2(a_f_num / 128., .5));
 
 }
-`}
+`;
+  }
 
-  get vertex_shader() {return `
+  get vertex_shader() {
+    return `
 precision mediump float;
 attribute vec2 position;
 uniform float u_size;
@@ -707,14 +749,16 @@ void main () {
   fragColor = vec4(u_color.rgb, 1.);
   //gl_Position = vec4(position / vec2(1., u_aspect), 1., 1.);
 }
-`}
-
-  set_renderer() {
-    this.render_polygons = this.regl(this.renderer())
-    this.render_points = this.regl(this.renderer("points"))
+`;
   }
 
-  get point_frag() { return `
+  set_renderer() {
+    this.render_polygons = this.regl(this.renderer());
+    this.render_points = this.regl(this.renderer("points"));
+  }
+
+  get point_frag() {
+    return `
 precision highp float;
 uniform float u_alpha;
 varying vec4 fragColor;
@@ -726,130 +770,136 @@ float r_sq = dot(cxy, cxy);
 if (r_sq > 1.0) {discard;}
 
 gl_FragColor = fragColor * u_alpha;
-}`}
+}`;
+  }
 
-  get triangle_frag() { return `
+  get triangle_frag() {
+    return `
 precision highp float;
 uniform float u_alpha;
 varying vec4 fragColor;
 
 void main() {
 gl_FragColor = fragColor * u_alpha;
-}`}
+}`;
+  }
 
   renderer(wut = "polygons") {
     const { regl, magic_numbers } = this;
-    const definition = {      
+    const definition = {
       depth: {
-        enable: false
+        enable: false,
       },
-      blend: {enable: true,      func: {
-        srcRGB: 'one',
-        srcAlpha: 'one',
-        dstRGB: 'one minus src alpha',
-        dstAlpha: 'one minus src alpha',
-      }
-             },
-      vert: wut == 'polygons' ? this.vertex_shader : this.point_vertex_shader,
-      frag: wut == 'polygons' ? this.triangle_frag : this.point_frag,
+      blend: {
+        enable: true,
+        func: {
+          srcRGB: "one",
+          srcAlpha: "one",
+          dstRGB: "one minus src alpha",
+          dstAlpha: "one minus src alpha",
+        },
+      },
+      vert: wut == "polygons" ? this.vertex_shader : this.point_vertex_shader,
+      frag: wut == "polygons" ? this.triangle_frag : this.point_frag,
       attributes: {
         a_x: regl.prop("x"),
         a_y: regl.prop("y"),
         a_ix: regl.prop("ix"),
         a_f_num: regl.prop("f_num"),
 
-        position: wut == "polygons" ? 
-          (_, {coords}) =>  coords: 
-          (_, {position, stride, offset}) => {return {buffer: position, offset , stride}}
+        position:
+          wut == "polygons"
+            ? (_, { coords }) => coords
+            : (_, { position, stride, offset }) => {
+                return { buffer: position, offset, stride };
+              },
       },
       count: regl.prop("count"),
-      elements: wut == "polygons" ? (_, {vertices}) => vertices : undefined,
+      elements: wut == "polygons" ? (_, { vertices }) => vertices : undefined,
       uniforms: {
-        u_time: (context, _) => performance.now()/500,
-        u_scale_factor: () => this.scale_factor ? this.scale_factor : .5,
+        u_time: (context, _) => performance.now() / 500,
+        u_scale_factor: () => (this.scale_factor ? this.scale_factor : 0.5),
         u_color_map: () => this.color_map,
-        u_k: function(context, props) {        
-          return props.transform.k
+        u_k: function (context, props) {
+          return props.transform.k;
         },
         u_discard_prob: () => this.discard_share,
         u_centroid: propd("centroid", [0, 0]),
-        u_color: (_, {color}) => color ? color : [.8, .9, .2],
-        u_blob: (_, {u_blob}) => u_blob,
+        u_color: (_, { color }) => (color ? color : [0.8, 0.9, 0.2]),
+        u_blob: (_, { u_blob }) => u_blob,
         u_window_scale: magic_numbers[0].flat(),
         u_untransform: magic_numbers[1].flat(),
-        u_zoom: function(context, props) {
+        u_zoom: function (context, props) {
           const g = [
             // This is how you build a transform matrix from d3 zoom.
             [props.transform.k, 0, props.transform.x],
             [0, props.transform.k, props.transform.y],
             [0, 0, 1],
-          ].flat()
-          return g
+          ].flat();
+          return g;
         },
-        u_alpha: (_, {alpha}) => alpha ? alpha : 1,
-        u_size: (_, {size}) => size || 1,
+        u_alpha: (_, { alpha }) => (alpha ? alpha : 1),
+        u_size: (_, { size }) => size || 1,
       },
-      primitive: wut == "polygons" ? "triangles" : "points"
-    }
+      primitive: wut == "polygons" ? "triangles" : "points",
+    };
     if (wut === "polygons") {
-      delete definition['count'] 
+      delete definition["count"];
     }
-    return definition
+    return definition;
   }
 }
 
-function window_transform(x_scale, y_scale, width, height) {    
-  
+function window_transform(x_scale, y_scale, width, height) {
   // A function that creates the two matrices a webgl shader needs, in addition to the zoom state,
   // to stay aligned with canvas and d3 zoom.
 
   // width and height are svg parameters; x and y scales project from the data x and y into the
   // the webgl space.
-   
+
   // Given two d3 scales in coordinate space, create two matrices that project from the original
   // space into [-1, 1] webgl space.
 
-  
   function gap(array) {
     // Return the magnitude of a scale.
-    return array[1] - array[0]
+    return array[1] - array[0];
   }
 
-  let x_mid = mean(x_scale.domain())
-  let y_mid = mean(y_scale.domain())
+  let x_mid = mean(x_scale.domain());
+  let y_mid = mean(y_scale.domain());
 
-  const xmulti = gap(x_scale.range())/gap(x_scale.domain());
-  const ymulti = gap(y_scale.range())/gap(y_scale.domain());
-  
+  const xmulti = gap(x_scale.range()) / gap(x_scale.domain());
+  const ymulti = gap(y_scale.range()) / gap(y_scale.domain());
+
   // the xscale and yscale ranges may not be the full width or height.
 
-  const aspect_ratio = width/height;
+  const aspect_ratio = width / height;
 
   // translates from data space to scaled space.
-  const m1 =  [
+  const m1 = [
     // transform by the scale;
-    [xmulti, 0, -xmulti * x_mid + mean(x_scale.range()) ],
-    [0, ymulti, -ymulti * y_mid + mean(y_scale.range()) ],
-    [0, 0, 1]
-  ]
-  
-  // translate from scaled space to webgl space. 
+    [xmulti, 0, -xmulti * x_mid + mean(x_scale.range())],
+    [0, ymulti, -ymulti * y_mid + mean(y_scale.range())],
+    [0, 0, 1],
+  ];
+
+  // translate from scaled space to webgl space.
   // The '2' here is because webgl space runs from -1 to 1; the shift at the end is to
   // shift from [0, 2] to [-1, 1]
   const m2 = [
     [2 / width, 0, -1],
-    [0, - 2 / height, 1],
-    [0, 0, 1]
-  ]
- 
-  return [m1, m2]
+    [0, -2 / height, 1],
+    [0, 0, 1],
+  ];
+
+  return [m1, m2];
 }
-
-
 
 function propd(string, def) {
   return (_, props) => {
-    if (props[string] !== undefined) {return props[string]}
-    return def
-  }
+    if (props[string] !== undefined) {
+      return props[string];
+    }
+    return def;
+  };
 }

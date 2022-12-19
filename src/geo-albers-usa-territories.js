@@ -1,4 +1,4 @@
-import { geoAlbers, geoConicEqualArea } from 'd3-geo';
+import { geoAlbers, geoConicEqualArea } from "d3-geo";
 
 var epsilon = 0.000001;
 
@@ -81,17 +81,18 @@ export function geoAlbersUsaTerritories() {
       t = lower48.translate(),
       x = (coordinates[0] - t[0]) / k,
       y = (coordinates[1] - t[1]) / k;
-    return (y >= 0.12 && y < 0.234 && x >= -0.225 && x < -0.185
-      ? alaska
-      : y >= 0.166 && y < 0.234 && x >= -0.185 && x < -0.08
-      ? hawaii
-      : y >= 0.204 && y < 0.234 && x >= 0.3 && x < 0.38
-      ? puertoRico
-      : y >= 0.05 && y < 0.204 && x >= -0.415 && x < -0.225
-      ? guamMariana
-      : y >= 0.18 && y < 0.234 && x >= -0.415 && x < -0.225
-      ? americanSamoa
-      : lower48
+    return (
+      y >= 0.12 && y < 0.234 && x >= -0.225 && x < -0.185
+        ? alaska
+        : y >= 0.166 && y < 0.234 && x >= -0.185 && x < -0.08
+        ? hawaii
+        : y >= 0.204 && y < 0.234 && x >= 0.3 && x < 0.38
+        ? puertoRico
+        : y >= 0.05 && y < 0.204 && x >= -0.415 && x < -0.225
+        ? guamMariana
+        : y >= 0.18 && y < 0.234 && x >= -0.415 && x < -0.225
+        ? americanSamoa
+        : lower48
     ).invert(coordinates);
   };
 

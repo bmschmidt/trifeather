@@ -9,20 +9,22 @@ It attempts to be clever about coercing strings to dictionaries, etc.
 
 Rather than store coordinates, it uses the mapbox [earcut library](https://github.com/mapbox/earcut)
 to triangulate polygons, and stores those triangles directly. The combination
-of this strategy and apache arrow means that the binary data can be pushed 
+of this strategy and apache arrow means that the binary data can be pushed
 straight to a GPU for plotting without any need for Javascript, without
 an extraordinary size penalty.
 
-A trifeather object can be instantiated from *either* the binary file format
+A trifeather object can be instantiated from _either_ the binary file format
 
 ```js
-new Trifeather(await fetch("file.feather"))
+new Trifeather(await fetch("file.feather"));
 ```
 
-or from 
+or from
 
 ```js
-Trifeather.from_feature_collection(await fetch("file.geojson").then(d => JSON.parse(d)))
+Trifeather.from_feature_collection(
+  await fetch("file.geojson").then((d) => JSON.parse(d))
+);
 ```
 
 Storing as triangles also happens to allow
