@@ -9,34 +9,37 @@ import {
   Binary,
   Utf8,
   Uint8,
-  Uint16,
   Uint32,
-  makeVector,
   makeBuilder,
   vectorFromArray,
   tableToIPC,
   tableFromIPC,
   Table,
-  Vector,
-  tableFromArrays,
 } from "apache-arrow";
 
 import earcut from "earcut";
 
-import { geoPath } from "d3-geo";
+import { geoPath, geoProjection } from "d3-geo";
 
 import { geoProject } from "d3-geo-projection";
 import { extent, range } from "d3-array";
 
 import clip from "polygon-clipping";
+import { Feature, FeatureCollection, Geometry } from "geojson";
 
 export default class TriFeather {
-  constructor(bytes) {
+  public bytes?: Uint8Array;
+  public t: Table;
+  public _n_coords?: number;
+  _coord_buffer: DataView;
+
+  constructor(bytes: Uint8Array) {
     this.bytes = bytes;
     this.t = tableFromIPC(bytes);
   }
 
   get n_coords() {
+    // Trigger creation.
     this.coord_buffer;
     return this._n_coords;
   }
@@ -60,13 +63,17 @@ export default class TriFeather {
     return { coords, vertices };
   }
 
+  /*
+  Creates a Trifeather object from a geojson feature collection and a d3 
+  projection.
+  */
   static from_feature_collection(
-    feature_collection,
-    projection,
+    feature_collection: FeatureCollection,
+    projection: typeof geoProjection,
     options = { dictionary_threshold: 0.75, clip_to_sphere: false }
   ) {
     if (projection === undefined) {
-      throw "Must define a projection";
+      throw new Error("Must define a projection");
     }
     // feature_collections: a (parsed) geoJSON object.
     // projection: a d3.geoProjection instance;
@@ -87,7 +94,10 @@ export default class TriFeather {
     const path = geoPath();
     let clip_shape;
 
-    let projected = geoProject(feature_collection, projection);
+    let projected = geoProject(
+      feature_collection,
+      projection
+    ) as FeatureCollection;
     if (options.clip_to_sphere) {
       clip_shape = geoProject({ type: "Sphere" }, projection);
       for (let feature of projected.features) {

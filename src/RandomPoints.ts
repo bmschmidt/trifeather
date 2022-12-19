@@ -8,21 +8,27 @@ import {
   Int8,
   vectorFromArray,
   tableFromArrays,
+  makeVector,
 } from "apache-arrow";
 import { shuffle, sum, range, extent, min } from "d3-array";
 
+/*
+frame: a Trifeather object.
+fields: Fields in the original data that contain integer counts to be produced here.
+n_represented: How many points to generate per attested point.
+keep: fields to retain.
+names: The names for the columns created.
+delim: A delimiter insider column names: so if splitting by '_' and a field is
+       'White_Female', then the delim would be '_' and the names ['race', 'gender']
+*/
 export function random_points(
   frame,
   fields,
   n_represented = 1,
-  value = "feather",
   keep = [],
   names = ["category"],
   delim = "_"
 ) {
-  /*
-
-  */
   // Usually this can just be a number.
   let targets = fields.map((f) => []);
   let total_counts = 0;
@@ -79,9 +85,6 @@ export function random_points(
       tri_number += stride * 3
     ) {
       let a, b, c;
-      //      console.log(vert_buffer.getUint32(tri_number + ix*stride, true))
-      //      console.log(vert_buffer[`getUint${feature.coord_resolution}`](tri_number + ix*stride, true))
-
       try {
         [a, b, c] = [0, 1, 2]
           .map((ix) =>
@@ -98,7 +101,7 @@ export function random_points(
           i,
           byte_length: feature.vertices.byteLength,
         });
-        throw "Yikes--hit some observable debugging code here.";
+        throw new Error("Yikes--hit some observable debugging code here.");
       }
       const double_area = Math.abs(
         a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1])
@@ -147,7 +150,7 @@ export function random_points(
   }
   // Hard to imagine someone needing more than 2**16 entries here...
 
-  const dictionaries = [];
+  const dictionaries: Vector<Dictionary> = [];
   // Split the names by the delimiter and turn each
   // into a dictionary column.
   names.forEach((column_name, column_number) => {
@@ -172,11 +175,13 @@ export function random_points(
     for (let i = 0; i < field_array.length; i++) {
       subset_array[i] = codes[field_array[i]];
     }
-    const classes = vectorFromArray(
-      strings,
-      new Dictionary(new Utf8(), dict_type)
-    );
-    dictionaries.push(classes);
+    const classes = vectorFromArray(strings, new Utf8());
+    const dictionaryVector2 = makeVector({
+      data: subset_array, // indexes into the dictionary
+      dictionary: classes,
+      type: new Dictionary(new Utf8(), new Uint8()),
+    });
+    dictionaries.push(dictionaryVector2);
   });
 
   const my_table2 = new tableFromArrays({
@@ -188,8 +193,6 @@ export function random_points(
     ),
     ...names.reduce((acc, d, i) => ({ ...acc, [d]: dictionaries[i] }), {}),
   });
-  console.log(dictionaries);
-  console.log(my_table2.get(100));
   return my_table2;
 }
 

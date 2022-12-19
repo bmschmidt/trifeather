@@ -1,14 +1,18 @@
 <script type="module">
   import { TriFeather, TriMap, randomPoints } from "./src/index.js";
+  import { geoAlbersUsa } from 'd3-geo'
   export const render = async function () {
     const data = await fetch("tests/states.json").then((d) => d.json());
     const deepscatter = await import(
       "https://benschmidt.org/deepscatter@next.js"
     );
-    TriFeather();
+    const triangulated = TriFeather.from_feature_collection(data, geoAlbersUsa());
+    const points = randomPoints(triangulated, ["points"] , 1, ["STATEFP"]);
+    console.log(points.schema)
   };
   render();
 </script>
 <body>
+
   <div id="deepscatter">FOO</div>
 </body>
