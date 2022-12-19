@@ -42,11 +42,11 @@ elements are polygons or multipolygons.
 To generate feather files from a shapefile, pass them via the args. Multiple files can be created at once.
 
 ```sh
-node project.js --files census/states/*.geojson
+node project.js --files tests/states.json
 ```
 
 To generate random points inside the polygons based on counts in the geojson, pass them instead.
 
 ```sh
-node project.js --files geojson/*.geojson --counts Black White Asian Hispanic "American Indian and Alaska Native" "Other" "Two or more"
+node project.js --files tests/states.json --counts counts
 ```

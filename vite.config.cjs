@@ -1,15 +1,12 @@
 // vite.config.js
-import path from 'path';
-import { fileURLToPath } from 'url';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 
 export default {
   build: {
+    target: 'es2020',
     lib: {
-      entry: path.resolve(__dirname, 'src/index.js'),
+      entry: __dirname + '/src/index.js',
       name: 'trifeather',
+      formats: ['es', 'umd'],
       fileName: (format) => `trifeather.${format}.js`
     },
     rollupOptions: {

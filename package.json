@@ -1,7 +1,7 @@
 {
   "private": false,
   "name": "trifeather",
-  "version": "1.2.2",
+  "version": "1.2.13",
   "description": "Pre-triangulated feather files",
   "unpkg": "dist/trifeather.umd.js",
   "files": [
@@ -20,6 +20,7 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
+    "prettier": "prettier --write ."
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -29,7 +30,6 @@
   "author": "bmschmidt@gmail.com",
   "license": "MIT",
   "dependencies": {
-    "@apache-arrow/es5-cjs": "^3.0.0",
     "commander": "^6.2.1",
     "d3-array": "^3.0.2",
     "d3-color": "^3.0.1",
@@ -40,6 +40,7 @@
     "polygon-clipping": "^0.15.3"
   },
   "devDependencies": {
+    "apache-arrow": "^10.0.1",
     "d3-geo": "^3.0.1",
     "d3-random": "^3.0.1",
     "d3-zoom": "^3.0.0",
@@ -47,8 +48,9 @@
     "eslint-loader": "^1.9.0",
     "JSONStream": "^1.3.5",
     "lodash": "^4.17.14",
+    "prettier": "2.8.1",
     "regl": "^2.1.0",
-    "vite": "^2.5.0",
+    "vite": "^2.5.2",
     "yargs": "^13.2.4"
   }
 }
